@@ -1,5 +1,4 @@
-
-import { useEffect, useState, useRef } from "react";
+ import { useEffect, useState, useRef } from "react";
 import { 
   Home, 
   Compass, 
@@ -12,16 +11,12 @@ import {
   ChevronDown,
   ChevronRight,
   Settings,
-  User,
-  LogOut,
-  MessageSquare
+  User
 } from "lucide-react";
 import { useSession } from "../context/SessionContext";
 import { useChat } from "../context/ChatContext";
 import { toast } from "react-toastify";
 import { createPortal } from "react-dom";
-
-const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 function Portal({ children }) {
   return createPortal(children, document.body);
@@ -120,19 +115,6 @@ const SideNav = ({
     };
   }, []);
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (settingsRef.current && !settingsRef.current.contains(event.target)) {
-        setIsSettingsOpen(false);
-      }
-      if (feedbackRef.current && !feedbackRef.current.contains(event.target)) {
-        setIsFeedbackOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
   const handleNewChat = async () => {
     if (!hasUsedSession && currentSessionId) {
       toast.warn("You haven't used the current chat yet.");
@@ -206,7 +188,7 @@ const SideNav = ({
         feedback: feedback,
       };
 
-      const res = await fetch(`${BASE_URL}/api/user/feedback`, {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/user/feedback`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -231,12 +213,20 @@ const SideNav = ({
   };
 
   useEffect(() => {
-    const handleClickOutside = () => {
-      setOpenDropdownId(null);
+    const handleClickOutside = (event) => {
+      if (openDropdownId !== null) {
+        setOpenDropdownId(null);
+      }
+      if (settingsRef.current && !settingsRef.current.contains(event.target)) {
+        setIsSettingsOpen(false);
+      }
+      if (feedbackRef.current && !feedbackRef.current.contains(event.target)) {
+        setIsFeedbackOpen(false);
+      }
     };
     document.addEventListener("click", handleClickOutside);
     return () => document.removeEventListener("click", handleClickOutside);
-  }, []);
+  }, [openDropdownId]);
 
   const filteredSessions = sessions.filter((session) =>
     session.title?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -271,13 +261,17 @@ const SideNav = ({
         </button>
         <div className="flex-1"></div>
         <button 
-          onClick={() => setOpenToggle(true)}
           className="p-2 hover:bg-gray-100 rounded-lg transition" 
           title="Settings"
+          onClick={() => setOpenToggle(true)}
         >
           <Settings size={20} className="text-gray-600" />
         </button>
-        <button className="p-2 hover:bg-gray-100 rounded-lg transition" title="Profile">
+        <button 
+          className="p-2 hover:bg-gray-100 rounded-lg transition" 
+          title="Profile"
+          onClick={() => setOpenToggle(true)}
+        >
           <User size={20} className="text-gray-600" />
         </button>
       </div>
@@ -288,7 +282,7 @@ const SideNav = ({
     <div className="w-full h-full bg-white border-r border-gray-200 flex flex-col">
       {/* Header */}
       <div className="p-4 border-b border-gray-200">
-        <div className="flex items-center justify-between mb-4">
+        {/* <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
               <span className="text-white font-bold text-lg">₿</span>
@@ -301,7 +295,7 @@ const SideNav = ({
           >
             <ChevronRight size={20} className="text-gray-600" />
           </button>
-        </div>
+        </div> */}
 
         {/* Search Bar */}
         <div className="relative">
@@ -500,7 +494,7 @@ const SideNav = ({
           + New Chat
         </button>
 
-        {/* User Profile */}
+        {/* User Profile with Settings */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-gray-700 rounded-full flex items-center justify-center">
@@ -513,29 +507,31 @@ const SideNav = ({
           </div>
           <div className="relative" ref={settingsRef}>
             <button 
-              onClick={() => setIsSettingsOpen(!isSettingsOpen)}
               className="p-2 hover:bg-gray-100 rounded-lg transition"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsSettingsOpen(!isSettingsOpen);
+              }}
             >
               <Settings size={18} className="text-gray-600" />
             </button>
 
+            {/* Settings Dropdown */}
             {isSettingsOpen && (
-              <div className="absolute bottom-full right-0 mb-2 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+              <div className="absolute bottom-12 right-0 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
                 <button
                   onClick={() => {
                     setIsFeedbackOpen(true);
                     setIsSettingsOpen(false);
                   }}
-                  className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100 flex items-center gap-2 text-sm rounded-t-lg"
+                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-t-lg transition"
                 >
-                  <MessageSquare size={14} />
                   Feedback
                 </button>
                 <button
                   onClick={handleLogout}
-                  className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100 flex items-center gap-2 text-sm rounded-b-lg"
+                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-b-lg transition"
                 >
-                  <LogOut size={14} />
                   Logout
                 </button>
               </div>
@@ -544,39 +540,41 @@ const SideNav = ({
         </div>
       </div>
 
-      {/* Feedback Popup Modal */}
+      {/* Feedback Modal */}
       {isFeedbackOpen && (
-        <Portal>
-          <div className="fixed inset-0 flex items-center justify-center backdrop-blur-sm bg-black/50 z-50">
-            <div
-              ref={feedbackRef}
-              className="bg-white p-6 rounded-lg shadow-lg w-80"
-            >
-              <h2 className="text-lg font-bold mb-4">Submit Feedback</h2>
-              <textarea
-                value={feedback}
-                onChange={(e) => setFeedback(e.target.value)}
-                className="w-full border rounded p-2 mb-4"
-                placeholder="Write your feedback..."
-                rows="4"
-              ></textarea>
-              <div className="flex justify-end space-x-2">
-                <button
-                  onClick={() => setIsFeedbackOpen(false)}
-                  className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleFeedbackSubmit}
-                  className="px-4 py-2 rounded bg-indigo-600 text-white hover:bg-indigo-700"
-                >
-                  Submit
-                </button>
-              </div>
+        <div className="fixed inset-0 flex items-center justify-center backdrop-blur-sm bg-black/50 z-[60]">
+          <div
+            ref={feedbackRef}
+            className="bg-white p-6 rounded-lg shadow-xl w-80 md:w-96"
+          >
+            <h2 className="text-lg font-bold mb-4 text-gray-800">Submit Feedback</h2>
+            <textarea
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg p-3 mb-4 focus:outline-none focus:border-indigo-500 resize-none"
+              placeholder="Write your feedback..."
+              rows="4"
+            ></textarea>
+            <div className="flex justify-end space-x-2">
+              <button
+                onClick={() => {
+                  setIsFeedbackOpen(false);
+                  setFeedback("");
+                }}
+                className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-medium transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleFeedbackSubmit}
+                className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 text-sm font-medium transition"
+                disabled={!feedback.trim()}
+              >
+                Submit
+              </button>
             </div>
           </div>
-        </Portal>
+        </div>
       )}
     </div>
   );
