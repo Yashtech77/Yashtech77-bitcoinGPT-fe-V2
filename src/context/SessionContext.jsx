@@ -1,0 +1,129 @@
+import { createContext, useContext, useState } from "react";
+import { toast } from "react-toastify";
+
+const SessionContext = createContext();
+const BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+export const SessionProvider = ({ children }) => {
+  const [sessions, setSessions] = useState([]);
+  const [currentSessionId, setCurrentSessionId] = useState(
+    sessionStorage.getItem("currentSessionId") || null
+  );
+
+  const getAuthHeaders = () => {
+    const token = sessionStorage.getItem("token");
+    return {
+      "Content-Type": "application/json",
+      Authorization: token ? `Bearer ${token}` : "",
+    };
+  };
+
+  // ✅ Wrapper around fetch to handle 401 globally
+  const fetchWithAuth = async (url, options = {}) => {
+    const res = await fetch(url, {
+      ...options,
+      headers: {
+        ...getAuthHeaders(),
+        ...(options.headers || {}),
+      },
+    });
+
+    if (res.status === 401) {
+      toast.error("Session expired. Please log in again.");
+      sessionStorage.clear();
+      localStorage.clear();
+      window.location.href = "/"; // redirect to login
+      throw new Error("Unauthorized");
+    }
+
+    return res;
+  };
+
+  const fetchSessions = async () => {
+    try {
+      const res = await fetchWithAuth(`${BASE_URL}/api/sessions`);
+      const data = await res.json();
+      setSessions(data.sessions || []);
+    } catch (err) {
+      console.error("Error fetching sessions", err);
+      toast.error("Error fetching sessions");
+    }
+  };
+
+  const createNewSession = async () => {
+    try {
+      const userId = parseInt(sessionStorage.getItem("user_id"), 10);
+      if (!userId || isNaN(userId)) {
+        toast.error("User not found");
+        return null;
+      }
+
+      const res = await fetchWithAuth(`${BASE_URL}/api/sessions/new`, {
+        method: "POST",
+        body: JSON.stringify({ userId }),
+      });
+
+      const data = await res.json();
+      setSessions((prev) => [data, ...prev]);
+      setCurrentSessionId(data.session_id);
+      sessionStorage.setItem("currentSessionId", data.session_id);
+      toast.success("New session created");
+      return data.session_id;
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to create new session");
+      return null;
+    }
+  };
+
+  const deleteSession = async (session_id) => {
+    try {
+      await fetchWithAuth(`${BASE_URL}/api/sessions/${session_id}`, {
+        method: "DELETE",
+      });
+      setSessions((prev) => prev.filter((s) => s.session_id !== session_id));
+      toast.success("Session deleted");
+    } catch (err) {
+      toast.error("Failed to delete session");
+    }
+  };
+
+  const renameSession = async (session_id, newTitle) => {
+    try {
+      await fetchWithAuth(`${BASE_URL}/api/sessions/${session_id}/rename`, {
+        method: "POST",
+        body: JSON.stringify({ newTitle }),
+      });
+
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.session_id === session_id ? { ...s, title: newTitle } : s
+        )
+      );
+
+      toast.success("Session renamed");
+    } catch (err) {
+      toast.error("Failed to rename session");
+    }
+  };
+
+  return (
+    <SessionContext.Provider
+      value={{
+        sessions,
+        setSessions,
+        currentSessionId,
+        setCurrentSessionId,
+        fetchSessions,
+        createNewSession,
+        deleteSession,
+        renameSession,
+      }}
+    >
+      {children}
+    </SessionContext.Provider>
+  );
+};
+
+export const useSession = () => useContext(SessionContext);
+ 
